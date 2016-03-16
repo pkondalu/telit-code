@@ -55,58 +55,41 @@ def initializeseekFile():
  ########################################################### #
 # ###################  uploadTextDataFiles   ################ #
 # ########################################################### #
-def Http_Cfg():
-	mode=''
-	PORT = ''
-	TrailCount = 0
-	ConnTrailcnt = 0
-	GlobalVaria.HTML_ADDR = UrlSpliter(3)
-	PORT = UrlSpliter(1)
-	while (mode.find('OK')==-1) :
-		res = MDM.send('AT#HTTPCFG=1,',0)
-		res = MDM.send('"',0)
-		res = MDM.send(GlobalVaria.HTML_ADDR,0)
-		res = MDM.send('",',0)
-		res = MDM.send(PORT,0)
-		res = MDM.send(',0,,,0,40\r',0)
-		mode = Wait4Data()
-		StatusFlag = mode.find('OK')
-		if(StatusFlag == -1):
-			return 0
-		else:
-			print 'Configuration Done',mode
-			return 1
+
 def Htpp_Send():
+
 	res = ''
 	MdmRes = ''
-	
+	PrintDebug("In http Send function")
 	res = MDM.send(GlobalVaria.COLL_DATA_LINK, 5)
 	MOD.sleep(5)
 	MdmRes = Wait4Data()
+	PrintDebug(MdmRes)
 	if(MdmRes.find('>>>') != -1):
-		print 'server conection success',MdmRes
+		PrintDebug('server conection success'+MdmRes)
 		return 1
 	else:
-		print 'Server sending failed',MdmRes
+		PrintDebug('Server sending failed'+MdmRes)
 		return 0
 def ConnectToServer():
 	TrilCnt = 0
 	#print '\n In connecting to server \n'
+	PrintDebug("Connect to Server")
 	while(1):
 		if(Htpp_Send() == 1):
-			print '\n connecting to server Success \n'
+			PrintDebug('\n connecting to server Success \n')
 			GlobalVaria.HttpCon = 1
 			return 1
 		else:
 			TrilCnt = TrilCnt + 1
 			if(checkGPRSConnection() == 1):
 				GlobalVaria.Gprs_Flag = 1 #ravi
-				print 'GPRS connection success'
+				PrintDebug('GPRS connection success')
 				if(TrilCnt > 2):
 					#print ' \n TrilCnt exceeded so conection to server failure\n'
 					return 0
 			else:
-				print 'GPRS Connection Failed\n'
+				PrintDebug('GPRS Connection Failed\n')
 				GlobalVaria.Gprs_Flag = 0
 				return 0
 
@@ -531,32 +514,40 @@ def SmsSetup():
 			print 'SMS AVAILABLE',MdmRes
 			MDM2.receive(10)
 
-			
+		
 
 # *********************************************************** #	
 # **********       MAIN PROGRAM START FROM HEAR     ********* #
 # *********************************************************** #
+
 led = 0
 data = ''
 SbmEntry = 0
 Rtc_Set_Flag = '0'
-print'   SBM READING © 2014 ENTRY Telit Communications\r '
+print ('   SBM READING © 2014 ENTRY Telit Communications\r ')
 a = SER.set_speed('115200','8N1')
 TrailCnt  = 0
 MDM.send('AT+CPIN?\r', 2)
 MdmRes = Wait4Data()
-print '\n AT+CPIN? - \n',MdmRes
+#PrintDebug('\n AT+CPIN? - \n' + MdmRes)
 if(MdmRes.find('+CPIN')==-1):
 	GlobalVaria.simavailable = 0
-	print 'SIM NOT AVAILABLE',MdmRes
+	#PrintDebug('SIM NOT AVAILABLE'+MdmRes)
 else:
 	GlobalVaria.simavailable = 1
-	print 'SIM AVAILABLE',MdmRes
+	#PrintDebug('SIM AVAILABLE'+MdmRes)
 GlobalVaria.SignalStrength = '00'
 GlobalVaria.SignalStrength = GetSignalStrength()
-print 'Main Task -Version : ',GlobalVaria.SBM_SW_VERSION
-ReadInformationFile()
+#PrintDebug('Main Task -Version : ' + GlobalVaria.SBM_SW_VERSION)
+#ReadInformationFile()
 modemInitialization()
+loopIndex = 1
+while(loopIndex < 5):
+	PrintDebug("2")
+	PostData("filename=12345678&recno=1")
+	MOD.sleep(30)
+	loopIndex = loopIndex + 1
+	
 TrailCnt = 0
 SmsSetup()
 while((GlobalVaria.simavailable == 1) and (GlobalVaria.Gprs_Flag == 0) and (TrailCnt < 3)):
@@ -583,7 +574,7 @@ while(1):
 	MdmRes = ''
 	res = ''
 	Expired = ''
-	print '\n ---------  Running in the main Loop  -------------\n'
+	#PrintDebug('\n ---------  Running in the main Loop  -------------\n')
 	#ReadRTC()
 	MDM.receive(1)
 	MDM.receive(1)

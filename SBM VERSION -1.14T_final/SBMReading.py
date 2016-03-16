@@ -19,6 +19,10 @@ STX     	= {'0':'\x02','1':'\x03'};
 END     	= {'0':'\x0d','1':'\x0a'};
 DEFAULT_APN_SERVER			 = "airtelgprs.com                "
 DEFAULT_HTTPURL				 = "http://cpdclcollservice.atil.info/service.asmx/                                 "
+
+CMD_DOWNLOAD_DATA  = '0x28'
+CMD_DOWNLOAD_DATA  = '0x28'
+
 UartDataIn = 0
 def FileSize(FileName):
 	size = 0
@@ -66,6 +70,7 @@ def ReadInformationFile():
 		infofileHandler = open(GlobalVaria.INFORMATION_FILE, 'r')
 	except IOError:
 		##print '%s open Failed',GlobalVaria.INFORMATION_FILE
+		PrintDebug("Error in reading information File")
 		GlobalVaria.Info['HttpUrl'] = DEFAULT_HTTPURL
 		GlobalVaria.Info['ApnServer'] = DEFAULT_APN_SERVER
 		if(WriteInformationfile() == 1):
@@ -75,6 +80,7 @@ def ReadInformationFile():
 			except IOError:
 				#print '%s open Failed',GlobalVaria.INFORMATION_FILE
 				return 0
+	PrintDebug("Success Reading information file")
 	GlobalVaria.Infodata = infofileHandler.read(110)
 	##print 'INFO.INF is read',len(Infodata)
 	if(len(GlobalVaria.Infodata) != 110):
@@ -360,12 +366,14 @@ def ModemResponse():
 
 def FindSbmCmnd(sbmcmd):
 	#print 'sbmcmd',sbmcmd
+	PrintDebug("in find SBM Command")
 	mycase = {'!': GetInfoData,'"': WriteDataInfile,'#': SendHealthStatus,'$': SendInformationFile,
 				'%': DeleteFiles,'&': '','\'': '','(': ReadQuery,
-				')': GetRtc,'*': '','+': '',',': ModemResponse,'-': VersionInfo
+				')': GetDataFromServer,'*': '','+': '',',': ModemResponse,'-': VersionInfo
 			 }#start from (!)x21 to (-)x2D
 	myfunc = mycase[sbmcmd]
 	myfunc()
+	SER.send("in find SBM Command- End")
 def ReadQuery():
 	# data will be- \x02\x28 ''''''''''''''''''''''''''''\x03
 	GlobalVaria.ServiceNo = ''
@@ -419,9 +427,11 @@ def SBMmetReading():
 			UartDataIn = 0
 			SER.send("%s" %INVALID['0'])
 		if(UartDataIn == 1):
-			print 'Data matched .......Bufcount ',GlobalVaria.SBMBuffer
-			if((GlobalVaria.SBMBuffer[1] == '\x21')or(GlobalVaria.SBMBuffer[1] == '\x22') or(GlobalVaria.SBMBuffer[1] == '\x23') or(GlobalVaria.SBMBuffer[1] == '\x24') or (GlobalVaria.SBMBuffer[1] == '\x25') or (GlobalVaria.SBMBuffer[1] == '\x28') or (GlobalVaria.SBMBuffer[1] == '\x29') or (GlobalVaria.SBMBuffer[1] == '\x2D') or (GlobalVaria.SBMBuffer[1] == '\x2C')):
+			#PrintDebug('Data matched .......Bufcount ' + GlobalVaria.SBMBuffer)
+			if((GlobalVaria.SBMBuffer[1] == '\x21')or(GlobalVaria.SBMBuffer[1] == '\x22')or(GlobalVaria.SBMBuffer[1] == '\x23')or(GlobalVaria.SBMBuffer[1] == '\x24')or(GlobalVaria.SBMBuffer[1] == '\x25')or(GlobalVaria.SBMBuffer[1] == '\x28')or(GlobalVaria.SBMBuffer[1] == '\x29')or(GlobalVaria.SBMBuffer[1] == '\x2D')or(GlobalVaria.SBMBuffer[1] == '\x2C')):
 				FindSbmCmnd(GlobalVaria.SBMBuffer[1])
+			else:
+				SER.send('0x02')
 		Bufcnt = 0
 		UartDataIn = 0
 		GlobalVaria.SBMBuffer = ""

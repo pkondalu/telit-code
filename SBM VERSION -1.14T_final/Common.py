@@ -10,6 +10,9 @@ global SignStre
 TIMEOUT_ATTESA  = 40
 SignStre = 0
 
+def PrintDebug(message):
+	SER.send("\n"+message+'\n')
+			
 def UrlSpliter(Type):
 	PortNum = ''
 	serviceAdd = ''
@@ -60,7 +63,16 @@ def UrlSpliter(Type):
 			TelitUrl = TelitUrl[:Colon]
 			#print '\n TelitUrl Type 3 with colon is\n',TelitUrl
 			return TelitUrl
-		
+			
+def HttpGet(resource):
+	res = ''
+	MdmRes = ''
+	httpGetCommand = "%s%s,%s,0\r" % ('AT#HTTPQRY=1,0,', httpUrl, str(len(httpData)))
+	PrintDebug(resource)
+	res = MDM.send(resource, 5)
+	MOD.sleep(5)
+	MdmRes = Wait4Data()
+
 def ParseRTC(res):
 	global SBM_RTC_BUFFER
 	cclkfound = 0
@@ -114,12 +126,7 @@ def ParseRTC(res):
 	GlobalVaria.DateTime['min'] = Time[2:4]
 	#print 'DateTime[min] \n',DateTime['min']
 	GlobalVaria.DateTime['sec'] = Time[4:6]
-	#print 'DateTime[sec] \n',DateTime['sec']
 
-
-# ########################################################### #
-# #####          Function for Getting RTC Date          ########
-# ########################################################### #
 def isdigitof(Splitstr):
 	Numbers = "0123456789"
 	copysig = ""
@@ -130,6 +137,7 @@ def isdigitof(Splitstr):
 			copysig = copysig + index
 	#print 'copysig',copysig
 	return copysig
+
 def GetSignalStrength():
 	signal = ''
 	value = ''
@@ -159,6 +167,7 @@ def GetSignalStrength():
 	GlobalVaria.SignalStrength = '%02s'%(GlobalVaria.SignalStrength)
 	print 'SignalStrength--',GlobalVaria.SignalStrength
 	return GlobalVaria.SignalStrength
+
 def prepareConnectionPacket(uploadFileSize):
 	index = 0
 	sizestring = ""
@@ -172,7 +181,6 @@ def prepareConnectionPacket(uploadFileSize):
 		return 0
 	fo.write(ConnectionPacket)
 	fo.close()
-	#print 'ConnectionPacket',ConnectionPacket
 
 def modemInitialization():
 	#print '\n In modem initialisation \n'
@@ -257,6 +265,7 @@ def ReadRTC():
 	if(DT.find('+CCLK') != -1):
 		ParseRTC(DT)
 	print '\n reading rtc completed\n'
+
 def Wait4Data():
 	data = ''
 	#print '\n-------------Mdm command--------------'
@@ -266,11 +275,14 @@ def Wait4Data():
 		data = MDM.receive(15)
 	#print 'data in Wait4Data ',data
 	return data
-
-# ########################################################### #
-# ########    Function for Checking GPRS Connction    ####### #
-# ########################################################### #
-		
+	
+def WaitForModemResponse(timeoutInSec):
+	data = ''
+	timeout = MOD.secCounter() + TIMEOUT_ATTESA
+	while((len(data) == 0) and (MOD.secCounter() < timeout)):
+		data = MDM.receive(timeoutInSec)
+	return data
+	
 def checkGPRSConnection():
 	PdpTraicnt = 0
 	APN = ''
@@ -323,10 +335,6 @@ def checkGPRSConnection():
 	print 'GPRS OK'
 	return 1
 
-# ########################################################### #
-# #####   Function for Verifying Registration       ##########
-# ########################################################### #
-
 def verifyREG():
 	REG = 0
 	MDM.receive(1)
@@ -367,3 +375,65 @@ def verifyREG():
 		#print 'registred ROAMING'
 		REG = 1
 	return res
+
+def Http_Cfg():
+	PrintDebug("In Http Configuration")
+	mode=''
+	PORT = ''
+	TrailCount = 0
+	ConnTrailcnt = 0
+	GlobalVaria.HTML_ADDR = UrlSpliter(3)
+	PORT = UrlSpliter(1)
+	while (mode.find('OK')==-1) :
+		res = MDM.send('AT#HTTPCFG=1,',0)
+		res = MDM.send('"',0)
+		res = MDM.send(GlobalVaria.HTML_ADDR,0)
+		res = MDM.send('",',0)
+		res = MDM.send(PORT,0)
+		res = MDM.send(',0,,,0,120\r',0)
+		mode = Wait4Data()
+		StatusFlag = mode.find('OK')
+		if(StatusFlag == -1):
+			#PrintDebug("HttpConfuration Done")
+			return 0
+		else:
+			#PrintDebug('Configuration Done'+mode)
+			return 1	
+	
+def PostData(recordData):
+	PrintDebug("Get Data From Server received!!!")
+	httpData = recordData
+	methodName = ""
+	GlobalVaria.Info['HttpUrl']  = "http://apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/ReadRecord"
+	if(Http_Cfg() == 1):
+		PrintDebug("Http Configuration Done")
+	else:
+		PrintDebug("Failed")
+		return 0
+	PrintDebug(GlobalVaria.Info['HttpUrl'])
+	httpUrl = '"' + UrlSpliter(2) + '"'
+	PrintDebug(httpUrl)
+	GlobalVaria.COLL_DATA_LINK = "%s%s,%s,0\r" % ('AT#HTTPSND=1,0,', httpUrl, str(len(httpData)))
+	PrintDebug(GlobalVaria.COLL_DATA_LINK)
+	res = MDM.send(GlobalVaria.COLL_DATA_LINK, 5)
+	MOD.sleep(5)
+	MdmRes = WaitForModemResponse(120)
+	PrintDebug(MdmRes)
+	if(MdmRes.find('>>>') != -1):
+		PrintDebug("Connected!!!")
+		recordData = recordData+'\r\n'
+		PrintDebug(recordData)
+		MDM.send(recordData, 5)
+		MOD.sleep(5)
+		MdmRes = WaitForModemResponse(120)
+		PrintDebug(MdmRes)
+		if(MdmRes.find("OK") != -1):
+			PrintDebug("Data Sent and Waiting for Http Status")
+			MdmRes = WaitForModemResponse(120)
+			PrintDebug(MdmRes)
+			return 1
+		else:
+			return 0
+	else:
+		PrintDebug("Not Connected!!!")
+		return 0

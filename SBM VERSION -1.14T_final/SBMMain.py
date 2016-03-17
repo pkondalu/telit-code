@@ -259,9 +259,44 @@ def ExitProgram():
 	GlobalVaria.exitFlag = 1
 
 def SendDataToServer(filename):
-	PrintDebug("SendDataToServer" + filename)
+	PrintDebug("SendDataToServer:" + filename)
 	postUrl = "http://apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/GetCollectionData"
-	
+	startIndex = 0
+	chunk = ''
+	Hour = ''
+	TempBuffer = ''
+	dataBlockSize = 1000
+	RandValue= ""
+	ReadRTC()
+	PrintDebug("After ReadRTC")
+	PrintDebug("Hour:" + str(GlobalVaria.DateTime['hour']))
+	Hour = Hour + GlobalVaria.DateTime['hour']
+	fileSize = GetFileSize(filename)
+	if(fileSize > 0):
+		chunk = ReadFile(filename,startIndex, dataBlockSize)
+		while(chunk != ''):
+			GlobalVaria.FileMode = FILE_CREATE
+			GlobalVaria.recno = 0
+			GlobalVaria.data_length = 0
+			GlobalVaria.ServerFileName = ''
+			TempBuffer = ''
+			RandValue = Hour[1:]+ GlobalVaria.DateTime['min'] + GlobalVaria.DateTime['sec']
+			GlobalVaria.ServerFileName = "C_" + GlobalVaria.DateTime['year'] + GlobalVaria.DateTime['month'] + GlobalVaria.DateTime['day'] 
+			GlobalVaria.ServerFileName = GlobalVaria.ServerFileName + GlobalVaria.DateTime['hour'] + GlobalVaria.DateTime['min']  + GlobalVaria.DateTime['sec']
+			GlobalVaria.ServerFileName = GlobalVaria.ServerFileName + RandValue + GlobalVaria.CIMINumber[15:]+".txt"
+			PrintDebug("ServerFileName:" + GlobalVaria.ServerFileName)
+			TempBuffer = 'filename=' +  GlobalVaria.ServerFileName 
+			TempBuffer = TempBuffer + '&type=' + GlobalVaria.FileMode  
+			TempBuffer = TempBuffer + '&recno=' + str(GlobalVaria.recno)  
+			TempBuffer = TempBuffer + '&length=' + str(GlobalVaria.data_length) 
+			TempBuffer = TempBuffer + '&buffer=' + chunk
+			PrintDebug(TempBuffer)
+			startIndex = startIndex + dataBlockSize
+			chunk = ReadFile(filename,startIndex, dataBlockSize)
+		return 1
+	else:
+		PrintDebug("Empty File")
+		return 0
 def ProcessSBMCommand():
 	while(1):
 		PrintDebug("SBS Command Process")

@@ -53,7 +53,21 @@ global  INFORMATION_FILE
 global InFileLenExceededflag
 global OutFileLenExceededflag
 global Servertrial
+global gAtResponse
+global gHttpRespone
+global gFileValidationMethod
+global gUploadDataMethod
+global gDownloadDataMethod
+global 	APN
+global exitFlag
+global SBM_RTC_BUFFER
 # ########################## SBMMAIN INITILAISATION #########################
+SBM_RTC_BUFFER=''
+exitFlag=0
+APN=  "airtelgprs.com                "
+gFileValidationMethod = "FileValidation"
+gDownloadDataMethod = "ReadRecord"
+gUploadDataMethod = "GetCollectionData"
 UartData 			= ""
 InFileLenExceededflag = '0'
 Servertrial = 0

@@ -1,6 +1,6 @@
 AT#HTTPQRY=1,0,"myschoolapis.azurewebsites.net/api/Values"
 AT#HTTPCFG=1,"myschoolapis.azurewebsites.net",80,0,"","",0,120,1
-AT#HTTPQRY=1,0,"myschoolapis.azurewebsites.net/api/values","content-type:application/json"
+AT#HTTPQRY=1,0,"/api/values","content-type:application/json"
 AT#HTTPQRY=1,1,"cpdclcollservice.atil.info/service.asmx/HelloWorld","HTTP/1.1"
 AT#HTTPQRY=1,0,"cpdclcollservice.atil.info/service.asmx/HelloWorld"
 AT#HTTPQRY=1,1,"/service.asmx/HelloWorld"
@@ -24,6 +24,7 @@ AT#HTTPSND=1,0,"apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/ReadRecord?filename=123
 AT#HTTPSND=1,0,"apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/ReadRecord",25,1,":text/plain"
 AT#HTTPSND=1,0,"apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/ReadRecord",25,1,"Content-length:25"
 filename=12345678&recno=1
+filename=12345678-2.04
 AT#HTTPQRY=1,0,"apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/ReadRecord?filename=1234&recno=123","content-type:application/json"
 
 AT#HTTPQRY=1,0,"https://www.ietf.org/rfc/rfc2616.txt"
@@ -31,4 +32,4 @@ AT#HTTPQRY=1,0,"https://www.ietf.org/rfc/rfc2616.txt"
 
 
 AT#HTTPSND=1,0,"/SBMDOWNLOAD.asmx/ReadRecord",25,0  -Correct Format
-AT#HTTPSND=1,0,"/SBMDOWNLOAD.asmx/FileValidation",25,0  -Correct Format
+AT#HTTPSND=1,0,"/SBMDOWNLOAD.asmx/FileValidation",22,0  -Correct Format

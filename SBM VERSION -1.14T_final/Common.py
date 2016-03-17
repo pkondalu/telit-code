@@ -12,7 +12,26 @@ SignStre = 0
 
 def PrintDebug(message):
 	SER.send("\n"+message+'\n')
-			
+
+def ExecuteATCommand(command, exceptedResponse, modemSleep, timeout, trailCount):
+	trialIndex = 0
+	response = ''
+	msg = ''
+	while (response.find(exceptedResponse)==-1):
+		MDM.send(command,timeout)
+		MOD.sleep(modemSleep)
+		response = WaitForModemResponse(timeout)
+		GlobalVaria.gAtResponse = response
+		if(trialIndex > trailCount):
+			msg = "Command : " + command + "Response:" + response  +" - FAILED"
+			msg = msg.replace('\r','')
+			msg = msg.replace('\n','')
+			PrintDebug(msg)
+			return 0	
+		trialIndex = trialIndex + 1
+	#PrintDebug("Command : " + command  + "- SUCCESS")
+	return 1
+
 def UrlSpliter(Type):
 	PortNum = ''
 	serviceAdd = ''
@@ -74,9 +93,9 @@ def HttpGet(resource):
 	MdmRes = Wait4Data()
 
 def ParseRTC(res):
-	global SBM_RTC_BUFFER
+	PrintDebug("ParseRTC")
 	cclkfound = 0
-	SBM_RTC_BUFFER = ''
+	GlobalVaria.SBM_RTC_BUFFER = ''
 	Time1 = ''
 	date =''
 	date1 = ''
@@ -114,7 +133,7 @@ def ParseRTC(res):
 		if(index == ':'):
 			index = ''
 		Time = Time + index
-	SBM_RTC_BUFFER = day+month+year+'&'+Time+''
+	GlobalVaria.SBM_RTC_BUFFER = day+month+year+'&'+Time+''
 	GlobalVaria.DateTime['day'] = day
 	#print 'DateTime[day]',DateTime['day']
 	GlobalVaria.DateTime['month'] = month
@@ -126,7 +145,7 @@ def ParseRTC(res):
 	GlobalVaria.DateTime['min'] = Time[2:4]
 	#print 'DateTime[min] \n',DateTime['min']
 	GlobalVaria.DateTime['sec'] = Time[4:6]
-
+	
 def isdigitof(Splitstr):
 	Numbers = "0123456789"
 	copysig = ""
@@ -142,13 +161,12 @@ def GetSignalStrength():
 	signal = ''
 	value = ''
 	SignStre = '00'
-	print 'In Signal Strength'
+	#PrintDebug('In Signal Strength')
 	MDM.receive(1)
 	MDM.receive(1)
 	MDM.receive(1)
 	signal = MDM.send('AT+CSQ\r', 3)
-	##MOD.sleep(5)
-	signal = Wait4Data()
+	signal = WaitForModemResponse(120)
 	print 'signal',signal
 	IdUpdCsq = signal.find('Q: ')
 	if (IdUpdCsq == -1 ):
@@ -165,113 +183,15 @@ def GetSignalStrength():
 	SignStre = signal[IdUpdCsq+3 : CSQfind]
 	GlobalVaria.SignalStrength = '%02d' %int(SignStre)
 	GlobalVaria.SignalStrength = '%02s'%(GlobalVaria.SignalStrength)
-	print 'SignalStrength--',GlobalVaria.SignalStrength
+	PrintDebug('SignalStrength: ' + str(GlobalVaria.SignalStrength))
 	return GlobalVaria.SignalStrength
-
-def prepareConnectionPacket(uploadFileSize):
-	index = 0
-	sizestring = ""
-	#print 'In prepareConnectionPacket'
-	sizestring = "%06d"%(uploadFileSize)
-	ConnectionPacket = "UNITID:SBMM1012345" + sizestring
-	try:
-		fo = open('CNCTPKT.REC','w')
-	except IOError:
-		#print 'prepareconection packet failed'
-		return 0
-	fo.write(ConnectionPacket)
-	fo.close()
-
-def modemInitialization():
-	#print '\n In modem initialisation \n'
-	First = 1
-	count = 0
-	TrailCnt = 0
-	MdmCmd = ''
-	MdmRes = ''
-	while(First == 1):
-		SBMmetReading()
-		##print '\n DEBUG_INFO : AT command Sending\n'		#                       DEBUG_INFO : AT
-		MdmRes = ''
-		SBMmetReading()
-		#a = SER.send(MdmRes)		# debug info
-		TrailCnt = 0
-		MdmCmd = ''
-		MdmRes = ''
-		#print '\rDEBUG_INFO : AT+CPIN command Sending - \r',TrailCnt		#         DEBUG_INFO : AT+CPIN
-		MDM.receive(1)
-		while (MdmRes.find('+CPIN')==-1) :
-			MDM.send('AT+CPIN?\r', 2)
-			MdmRes = Wait4Data()
-			#print '\n AT+CPIN? - \n',MdmRes
-			if(TrailCnt > 3):
-				GlobalVaria.simavailable = 0
-				GlobalVaria.Gprs_Flag = 0
-				GlobalVaria.HttpCon = 0
-				return 0
-			##MOD.sleep(5)
-			TrailCnt = TrailCnt + 1
-		GlobalVaria.simavailable = 1
-		#a = SER.send(MdmRes)		# debug info
-		TrailCnt = 0
-		MdmCmd = ''
-		MdmRes = ''
-		#print '\rDEBUG_INFO : AT+CREG command Sending - \r',TrailCnt		#       DEBUG_INFO : AT+CREG
-		MDM.receive(1)
-		while (MdmRes.find('OK')==-1) :
-			MdmRes = verifyREG()
-			#print '\n AT+CREG? - \n',MdmRes
-			if(TrailCnt > 3):
-				#print 'Registration Failed'
-				GlobalVaria.Gprs_Flag = 0
-				GlobalVaria.HttpCon = 0
-				return 0
-			##MOD.sleep(5)
-			TrailCnt = TrailCnt + 1
-		#a = SER.send(MdmRes)		# debug info
-		#print 'Registration Success'
-		TrailCnt = 0
-		MdmCmd = ''
-		MdmRes = ''
-		#print '\rDEBUG_INFO : "AT#CCID" command Sending\r'		#                DEBUG_INFO : "CCID"
-		MDM.receive(1)
-		while (MdmRes.find('OK')==-1) :
-			MdmCmd = MDM.send('"AT#CCID\r', 2)     # AT context
-			MdmRes = Wait4Data()
-			#print '\n SIM CIMI NUM AT#CCID - \n',MdmRes
-			print ']SIM CIMI NUM Len - \n',len(MdmRes)
-			if(TrailCnt > 3):
-				return 0
-			##MOD.sleep(5)
-			TrailCnt = TrailCnt + 1
-		##MOD.sleep(5)
-		GlobalVaria.CIMINumber = ''#CCID: 89917310657203858031<CR><LF>OK
-		count = MdmRes.find('D:')
-		if (count == -1 ):
-			#print 'not found #CCID'
-			GlobalVaria.CIMINumber = ''
-		#GlobalVaria.CIMINumber = MdmRes[count+2:count+23]
-		GlobalVaria.CIMINumber = MdmRes[count+2:count + len(MdmRes) - 14]
-		print '\n GlobalVaria.CIMINumber -[',GlobalVaria.CIMINumber
-		print ']GlobalVaria.CIMINumber - \n',GlobalVaria.CIMINumber
-		return 1
-
-def ReadRTC():
-	MDM.receive(1)
-	print '\n reading rtc \n'
-	DT = MDM.send('AT+CCLK?\r', 3)
-	DT = Wait4Data()
-	#print 'Date & Time',DT
-	if(DT.find('+CCLK') != -1):
-		ParseRTC(DT)
-	print '\n reading rtc completed\n'
 
 def Wait4Data():
 	data = ''
 	#print '\n-------------Mdm command--------------'
 	timeout = MOD.secCounter() + TIMEOUT_ATTESA
 	while((len(data) == 0) and (MOD.secCounter() < timeout)):
-		SBMmetReading()
+		#SBMmetReading()
 		data = MDM.receive(15)
 	#print 'data in Wait4Data ',data
 	return data
@@ -283,68 +203,88 @@ def WaitForModemResponse(timeoutInSec):
 		data = MDM.receive(timeoutInSec)
 	return data
 	
-def checkGPRSConnection():
-	PdpTraicnt = 0
-	APN = ''
-	s=''
-	SBMmetReading()
-	APN = GlobalVaria.Info['ApnServer'].strip()
-	#print 'NEW APN IS',APN
-	MDM.receive(1)
-	while (s.find('OK')==-1) :
-		a = MDM.send('AT+CGDCONT=1,"IP","',0)
-		a = MDM.send(APN,0)			# insert APN of the operator in use (e.g.TIM)  'IBOX.TIM.IT'
-		a = MDM.send('"\r',0)
-		s = Wait4Data()
-		#print 'In CGDCONT'
-		if(PdpTraicnt > 3):
-			GlobalVaria.Gprs_Flag = 0
-			return 0	
-		##MOD.sleep(10)
-		PdpTraicnt = PdpTraicnt + 1
-	##MOD.sleep(10)
-	#print 'Passed CGDCONT'
-	s=''
-	GprsTraicnt = 0
-	while (s.find('OK')==-1) :
-		#a = SER.send('\rDEBUG_INFO : GPRS Deactivation\r')# debug info
-		a = MDM.send('AT#SGACT=1,0\r', 3)     # GPRS context activation
-		##MOD.sleep(10)
-		s = Wait4Data()
-		#a = SER.send(s)		# debug info
-		##MOD.sleep(10)
-		if(GprsTraicnt > 5):
-			GlobalVaria.Gprs_Flag = 0
-			return 0
-		##MOD.sleep(10)
-		GprsTraicnt = GprsTraicnt + 1
-	#print 'GPRS DEACTIVATED'
-	s=''
-	GprsTraicnt = 0
-	while (s.find('#SGACT')==-1) :
-		#a = SER.send('\rDEBUG_INFO : GPRS context\r')# debug info
-		a = MDM.send('AT#SGACT=1,1\r', 5)     # GPRS context activation
-		##MOD.sleep(20)
-		s = Wait4Data()
-		#a = SER.send(s)		# debug info
-		if(GprsTraicnt > 5):
-			GlobalVaria.Gprs_Flag = 0
-			return 0	
-		##MOD.sleep(10)
-		GprsTraicnt = GprsTraicnt + 1
-	print 'GPRS OK'
+def Http_Cfg():
+	PrintDebug("In Http Configuration")
+	PORT = ''
+	TrailCount = 0
+	ConnTrailcnt = 0
+	GlobalVaria.HTML_ADDR = UrlSpliter(3)
+	PORT = UrlSpliter(1)
+	command = 'AT#HTTPCFG=1,"' + GlobalVaria.HTML_ADDR + '",' + PORT + ',0,,,0,120\r'
+	result = ExecuteATCommand(command,"OK",1,120,3)
+	Http_Cfg_Flag = 0
+	if(result == 1):
+		Http_Cfg_Flag = 1
+	return result;
+		
+def SetGprsInitilization():
+	PrintDebug("SetGprsInitilization")
+	trialCount = 0
+	response = ''
+	command = 'AT+CGDCONT=1,"IP","' + GlobalVaria.APN.strip() + '"\r' 
+	result = ExecuteATCommand(command,"OK",1,120,1)
+	GlobalVaria.Gprs_Flag = 0
+	if(result == 1):
+		GlobalVaria.Gprs_Flag = 1
+	command = 'AT#SGACT=1,0\r' 					  # GRPS Context Activation
+	result = ExecuteATCommand(command,"OK",1,120,1)
+	GlobalVaria.Gprs_Flag = 0
+	if(result == 1):
+		GlobalVaria.Gprs_Flag = 1
+	MOD.sleep(10)
+	command = 'AT#SGACT=1,1\r' 					  # GRPS Context Activation
+	result = ExecuteATCommand(command,"#SGACT",20,120,3)
+	GlobalVaria.Gprs_Flag = 0
+	if(result == 1 or GlobalVaria.gAtResponse.find('context already activated') != -1):
+		GlobalVaria.Gprs_Flag = 1
+		#PrintDebug(GlobalVaria.gAtResponse)
+	if(GlobalVaria.Gprs_Flag == 1):
+		Http_Cfg()
+	else:
+		return 0
 	return 1
 
+def GetHttpResponse(httpRingMessage):
+	PROFILE_ID = 0
+	STATUS_CODE = 1
+	CONTENT_TYPE = 2
+	CONTENT_LENGTH = 3
+	response = httpRingMessage
+	response = response.replace('#HTTPRING:','')
+	resposeCodes = response.split(',')
+	PrintDebug('PROFILE_ID Code: '+ resposeCodes[PROFILE_ID])
+	PrintDebug('STATUS_CODE Code: '+ resposeCodes[STATUS_CODE])
+	PrintDebug('CONTENT_TYPE Code: '+ resposeCodes[CONTENT_TYPE])
+	PrintDebug('CONTENT_LENGTH Code: '+ resposeCodes[CONTENT_LENGTH])
+	if(len(resposeCodes) == 4):
+		# if(resposeCodes[STATUS_CODE].find("200") == -1):
+			# PrintDebug('Response Code: '+ resposeCodes[STATUS_CODE])
+			# return "Error - No Success Code in HTTPRING"
+		# contentLength = resposeCodes[CONTENT_LENGTH].strip()
+		# if(isnumeric(contentLength) == False or contentLength == "0"):
+			# PrintDebug('Content - Length:'+resposeCodes[CONTENT_LENGTH])
+			# return "Error - Zero Content Length in HTTPRING"
+		command = "AT#HTTPRCV="+resposeCodes[PROFILE_ID].strip() + '\r'
+		result = ExecuteATCommand(command,"<<<",50,120,1)
+		if(result == 1):
+			response = GlobalVaria.gAtResponse
+			response = response.replace('<<<','')
+			response = response.replace('\r','')
+			response = response.replace('\n','')
+			return response;
+		else:
+			return 'Error - Error in HTTPRCV '
+	else:
+		return "Error - in HTTPRING"
+		
 def verifyREG():
+	PrintDebug("Verify Registration")
 	REG = 0
 	MDM.receive(1)
 	res = MDM.send('AT+COPS?\r', 3)
-	res = Wait4Data()
-	#print res
-	res = MDM.send('AT+CREG?\r', 3)
-	res = Wait4Data()
-	#print res
-	SBMmetReading()
+	res = WaitForModemResponse(10)
+	result = ExecuteATCommand('AT+CREG?\r','+CREG:',1,120,3)
+	res = GlobalVaria.gAtResponse
 	if (res.find('+CREG: 0,0')!=-1) or (res.find('+CREG: 1,0')!=-1)or (res.find('+CREG: 2,0')!=-1):
 		# not registred
 		#print 'not REGISTRED'
@@ -374,40 +314,127 @@ def verifyREG():
 		# registred ROAMING
 		#print 'registred ROAMING'
 		REG = 1
-	return res
+	return res			
 
-def Http_Cfg():
-	PrintDebug("In Http Configuration")
-	mode=''
-	PORT = ''
-	TrailCount = 0
-	ConnTrailcnt = 0
-	GlobalVaria.HTML_ADDR = UrlSpliter(3)
-	PORT = UrlSpliter(1)
-	while (mode.find('OK')==-1) :
-		res = MDM.send('AT#HTTPCFG=1,',0)
-		res = MDM.send('"',0)
-		res = MDM.send(GlobalVaria.HTML_ADDR,0)
-		res = MDM.send('",',0)
-		res = MDM.send(PORT,0)
-		res = MDM.send(',0,,,0,120\r',0)
-		mode = Wait4Data()
-		StatusFlag = mode.find('OK')
-		if(StatusFlag == -1):
-			#PrintDebug("HttpConfuration Done")
-			return 0
-		else:
-			#PrintDebug('Configuration Done'+mode)
-			return 1	
+def ReadRTC():
+	PrintDebug("Read RTC")
+	MDM.receive(1)
+	PrintDebug('Reading RTC \n')
+	DT = MDM.send('AT+CCLK?\r', 3)
+	DT = WaitForModemResponse(120)
+	if(DT.find('+CCLK') != -1):
+		ParseRTC(DT)
+	PrintDebug("Reading rtc completed\n")
 	
-def PostData(recordData):
+def ModemSetup():
+	PrintDebug("Modem Setup")
+	First = 1
+	count = 0
+	TrailCnt = 0
+	MdmCmd = ''
+	MdmRes = ''
+	GlobalVaria.simavailable = 0
+	GlobalVaria.Gprs_Flag = 0
+	GlobalVaria.HttpCon = 0
+	GlobalVaria.simavailable = 0
+	result = ExecuteATCommand('AT+CPIN?\r','+CPIN',1,120,3)
+	if(result == 1):
+		GlobalVaria.simavailable = 1
+	else:
+		PrintDebug("Error- AT+CPIN? ")
+		return 0
+	MdmRes = ''
+	TrailCnt = 0
+	#PrintDebug("Before Verify")
+	while (MdmRes.find('OK')==-1) :
+		MdmRes = verifyREG()
+		if(TrailCnt > 3):
+			GlobalVaria.Gprs_Flag = 0
+			GlobalVaria.HttpCon = 0
+			return 0
+		TrailCnt = TrailCnt + 1
+		TrailCnt = 0
+	MdmRes = ''
+	while (MdmRes.find('OK')==-1):
+		result = ExecuteATCommand('AT#CCID\r','#CCID',1,120,3)
+		MdmRes = GlobalVaria.gAtResponse
+		#PrintDebug(MdmRes)
+		if(TrailCnt > 3):
+			return 0
+		TrailCnt = TrailCnt + 1
+		GlobalVaria.CIMINumber = ' ' #CCID: 89917310657203858031<CR><LF>OK
+		count = MdmRes.find('D:')
+		if (count == -1 ):
+			PrintDebug('not found #CCID')
+			GlobalVaria.CIMINumber = ' '
+		else:
+			MdmRes = MdmRes.replace("#CCID:",'').strip()
+			endIndex = MdmRes.find('\r')
+			if(endIndex > 0):
+				GlobalVaria.CIMINumber = MdmRes[0:endIndex]
+		PrintDebug('GlobalVaria.CIMINumber - [' + GlobalVaria.CIMINumber + ']')
+		return 1			
+	return 1
+
+def FileSize(FileName):
+	size = 0
+	file = 0
+	exist = 0
+	try:
+		file = open(FileName, "r")
+	except IOError:
+		##print "There was an error reading file"
+		return 0
+	file_text = file.seek(0,2)
+	size = file.tell()
+	##print 'value',size
+	file.close()
+	return size	
+
+def GetFileSize(filename):	
+	PrintDebug("Get File Size")
+	fileSize = 0
+	chunk = ''
+	file1 = -1
+	if(FileCheck(filename) == 1):
+		try:
+			file1 = open(filename, "r")
+		except IOError:
+			return -1
+		file1.seek(0,0)
+		while(1):
+			chunk = file1.read(100)
+			if(chunk != ''):
+				fileSize = fileSize + len(chunk)
+			else:
+				break
+		file1.close()
+		PrintDebug("Total Length Size:"+ str(fileSize))
+		return fileSize
+	else:
+		PrintDebug("File Not found :" + filename)
+		return -1
+
+def FileCheck(filename):
+	CheckHandler = -1
+	try:
+		CheckHandler = open(filename,'r')
+	except IOError:
+		return -1
+	CheckHandler.close()
+	return 1
+
+def PostData(postUrl, recordData):
 	PrintDebug("Get Data From Server received!!!")
 	httpData = recordData
 	methodName = ""
-	GlobalVaria.Info['HttpUrl']  = "http://apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/ReadRecord"
-	if(Http_Cfg() == 1):
-		PrintDebug("Http Configuration Done")
-	else:
+	GlobalVaria.Info['HttpUrl'] = postUrl
+	#GlobalVaria.Info['HttpUrl']  = "http://apepdclatmsbm.ctms.info/SBMDOWNLOAD.asmx/ReadRecord"
+	PrintDebug(GlobalVaria.Info['HttpUrl'])
+	if(SetGprsInitilization() != 1):
+		PrintDebug("GprsInitialization Failed")
+		return 0
+	if(Http_Cfg() != 1):
 		PrintDebug("Failed")
 		return 0
 	PrintDebug(GlobalVaria.Info['HttpUrl'])
@@ -415,24 +442,28 @@ def PostData(recordData):
 	PrintDebug(httpUrl)
 	GlobalVaria.COLL_DATA_LINK = "%s%s,%s,0\r" % ('AT#HTTPSND=1,0,', httpUrl, str(len(httpData)))
 	PrintDebug(GlobalVaria.COLL_DATA_LINK)
-	res = MDM.send(GlobalVaria.COLL_DATA_LINK, 5)
-	MOD.sleep(5)
-	MdmRes = WaitForModemResponse(120)
-	PrintDebug(MdmRes)
-	if(MdmRes.find('>>>') != -1):
+	result = ExecuteATCommand(GlobalVaria.COLL_DATA_LINK,">>>",20,120,3)
+	if(result == 1):
 		PrintDebug("Connected!!!")
 		recordData = recordData+'\r\n'
 		PrintDebug(recordData)
-		MDM.send(recordData, 5)
-		MOD.sleep(5)
-		MdmRes = WaitForModemResponse(120)
-		PrintDebug(MdmRes)
-		if(MdmRes.find("OK") != -1):
+		result = ExecuteATCommand(recordData,"OK",5,120,1)
+		PrintDebug(GlobalVaria.gAtResponse)
+		if(result == 1):
 			PrintDebug("Data Sent and Waiting for Http Status")
+			MOD.sleep(50)
 			MdmRes = WaitForModemResponse(120)
 			PrintDebug(MdmRes)
-			return 1
+			gHttpRespone = GetHttpResponse(MdmRes)
+			if(gHttpRespone.find("Error") == -1):
+				PrintDebug("Success in receiving data")
+				PrintDebug(gHttpRespone)
+				return 1
+			else:
+				PrintDebug("Error in receiving the data")
+				return 0
 		else:
+			PrintDebug("Error in sending the data")
 			return 0
 	else:
 		PrintDebug("Not Connected!!!")
